@@ -1,0 +1,42 @@
+FROM pytorch/pytorch:2.2.1-cuda11.8-cudnn8-devel
+
+# Set non-interactive frontend to avoid prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update and install packages
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    wget \
+    curl \
+    git \
+    cmake \
+    g++ \
+    gcc \
+    make \
+    python3-dev \
+    pybind11-dev \
+    libboost-all-dev \
+    libeigen3-dev \
+    libopenblas-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install common Python packages for RL
+RUN pip3 install --no-cache-dir --upgrade pip \
+    && pip3 install --no-cache-dir \
+    numpy \
+    scipy \
+    matplotlib \
+    pandas \
+    gym \
+    stable-baselines3
+
+# Set up a working directory
+WORKDIR /app
+
+# Set environment variables for CUDA
+ENV PATH /usr/local/cuda/bin:${PATH}
+ENV LD_LIBRARY_PATH /usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+
+# Set the default command to bash
+CMD ["/bin/bash"]
