@@ -26,6 +26,9 @@ class SchedulingAgent:
                 np.array(dones),
                 np.array(valid_action_masks)
             )
-            # Use formatted experiences to update the policy
-            self.policy.update(experiences)
             self.experience_buffer = []
+            
+            # Use formatted experiences to update the policy
+            return self.policy.update(experiences)
+        else:
+            return 0, 0, 0

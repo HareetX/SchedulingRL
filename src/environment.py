@@ -7,13 +7,13 @@ class SchedulingEnvironment:
     def __init__(self, accelerator_path, network_path, layer_idx, metric, max_steps):
         # Initialize scheduling table and constraints
         self.analyzer = Analyzer(accelerator_path, network_path, layer_idx)
-        
+    
         self.table = np.array(self.analyzer.get_scheduling_table())
 
         self.dnn_params = self.analyzer.get_layer_parameters(layer_idx)
-        
+    
         self.num_resources = 10
-        
+    
         self.fixed_rows = []
 
         self.curr_row_idx = self.num_resources - 1
@@ -33,7 +33,7 @@ class SchedulingEnvironment:
         self.action_history = [9] * 10  # Store last 10 actions
 
         self.valid_action_mask = np.ones(self.action_dim, dtype=bool)
-        
+    
         self.reset()
     
     def reset(self):
@@ -170,6 +170,7 @@ class SchedulingEnvironment:
         # Search for the optimized table
         # print(f"Optimized row indices: {optimized_rows_idx}")
         # print(f"Products: {products}")
+
         optimized_table = self.analyzer.search_optimized_table(optimized_rows_idx, len(optimized_rows_idx), products, self.metric)
         # optimized_table = self.analyzer.search_optimized_table_sequence(optimized_rows_idx, len(optimized_rows_idx), products, self.metric)
         self.table = np.array(optimized_table)
@@ -295,6 +296,17 @@ class SchedulingEnvironment:
                 self.valid_action_mask[i] = False
             else:
                 self.valid_action_mask[i] = True
+    
+    def update_configuration(self, accelerator_path, network_path, layer_idx):
+        # Initialize scheduling table and constraints
+        print(f"Updating configuration with: {accelerator_path}, {network_path}, {layer_idx}")
+        self.analyzer = Analyzer(accelerator_path, network_path, layer_idx)
+        
+        self.table = np.array(self.analyzer.get_scheduling_table())
+
+        self.dnn_params = self.analyzer.get_layer_parameters(layer_idx)
+        
+        self.reset()
 
     @property
     def state_dim(self):

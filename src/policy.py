@@ -82,6 +82,10 @@ class PPOPolicy(nn.Module):
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         # PPO update for multiple epochs
+        total_loss = 0
+        total_actor_loss = 0
+        total_critic_loss = 0
+
         for _ in range(self.num_epochs):
             # Compute current action probabilities and values with mask
             action_probs, state_values = self.forward(states, valid_action_masks)
@@ -108,8 +112,20 @@ class PPOPolicy(nn.Module):
             # Total loss
             loss = actor_loss + self.value_coeff * critic_loss - self.entropy_coeff * entropy
 
+            # Accumulate losses
+            total_loss += loss.item()
+            total_actor_loss += actor_loss.item()
+            total_critic_loss += critic_loss.item()
+
             # Optimize
             self.optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(self.parameters(), max_norm=self.max_grad_norm)
             self.optimizer.step()
+
+        # Return average losses over the epochs
+        avg_loss = total_loss / self.num_epochs
+        avg_actor_loss = total_actor_loss / self.num_epochs
+        avg_critic_loss = total_critic_loss / self.num_epochs
+
+        return avg_loss, avg_actor_loss, avg_critic_loss
