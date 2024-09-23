@@ -36,20 +36,30 @@ class PPOPolicy(nn.Module):
         self.device = device
         self.to(self.device)
     
-    def forward(self, state):
-        return self.actor(state), self.critic(state)
+    def forward(self, state, valid_action_mask):
+        action_probs, state_values = self.actor(state), self.critic(state)
+        # print("Original action_probs:", action_probs)
+        # print("Valid action mask:", valid_action_mask)
+        action_probs = action_probs * valid_action_mask
+        # print("Masked action_probs:", action_probs)
+        action_probs_sum = action_probs.sum(dim=-1, keepdim=True)
+        # print("Sum of masked action_probs:", action_probs_sum)
+        action_probs = action_probs / (action_probs_sum + 1e-8)  # Add small epsilon to avoid division by zero
+        # print("Normalized action_probs:", action_probs)
+        return action_probs, state_values
     
-    def select_action(self, state):
+    def select_action(self, state, valid_action_mask):
         state = torch.FloatTensor(state).to(self.device)
+        valid_action_mask = torch.FloatTensor(valid_action_mask).to(self.device)
         with torch.no_grad():
-            action_probs = self.actor(state)
+            action_probs, _ = self.forward(state, valid_action_mask)
         action_dist = torch.distributions.Categorical(action_probs)
         action = action_dist.sample()
         return action.item()
 
     def update(self, experiences):
-        # Unpack experiences: states, actions, rewards, next_states, dones
-        states, actions, rewards, next_states, dones = experiences
+        # Unpack experiences: states, actions, rewards, next_states, dones, valid_action_masks
+        states, actions, rewards, next_states, dones, valid_action_masks = experiences
 
         # Convert to tensors
         states = torch.FloatTensor(states).to(self.device)
@@ -57,22 +67,31 @@ class PPOPolicy(nn.Module):
         rewards = torch.FloatTensor(rewards).view(-1, 1).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
         dones = torch.FloatTensor(dones).view(-1, 1).to(self.device)
+        valid_action_masks = torch.FloatTensor(valid_action_masks).to(self.device)
 
         # Compute advantages and returns
         td_target = rewards + (1 - dones) * self.gamma * self.critic(next_states)
         td_delta = td_target - self.critic(states)
         advantages = utils.compute_advantage(td_delta.cpu(), self.gamma, self.lmbda).to(self.device)
-        old_log_probs = torch.log(self.actor(states).gather(1, actions)).detach()
+        
+        # Compute old action probabilities with mask
+        old_action_probs, _ = self.forward(states, valid_action_masks)
+        old_log_probs = torch.log(old_action_probs.gather(1, actions)+1e-8).detach() # Add small epsilon to avoid log(0)
 
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         # PPO update for multiple epochs
         for _ in range(self.num_epochs):
-            # Compute current action probabilities and values
-            action_probs, state_values = self.forward(states)
+            # Compute current action probabilities and values with mask
+            action_probs, state_values = self.forward(states, valid_action_masks)
+            # print("Action probs in update:", action_probs)
+            # if torch.isnan(action_probs).any():
+            #     print("NaN detected in action_probs")
+            #     assert False
+            #     return  # Skip this update
             dist = torch.distributions.Categorical(action_probs)
-            log_probs = torch.log(action_probs.gather(1, actions))
+            log_probs = torch.log(action_probs.gather(1, actions) + 1e-8)  # Add small epsilon to avoid log(0)
             
             # Compute ratio and surrogate loss
             ratio = torch.exp(log_probs - old_log_probs)

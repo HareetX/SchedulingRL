@@ -10,20 +10,27 @@ table = analyzer.get_scheduling_table()
 print(table)
 fixed_rows = analyzer.get_fixed_rows()
 print(fixed_rows)
-# best_table = analyzer.search_optimized_table([4,5,6,9], 4, table[-1], 0)
-# print(f"Best table: {np.array(best_table)}")
+
+# Estimate the cost
+analyzer.estimate_cost()
+# Print the cost
+total_energy = analyzer.get_total_energy()
+print(f"Old Total Energy: {total_energy}")
+total_cycle = analyzer.get_total_cycle()
+print(f"Old Total Cycle: {total_cycle}")
+
+best_table = analyzer.search_optimized_table([9, 5], 2, [64, 1, 112, 112, 3, 7, 7, 1], 0)
+print(f"Best table: {np.array(best_table)}")
 # best_table = analyzer.search_optimized_table_sequence([4,5,6,9], 3, table[-1], 0)
 # print(f"Best table: {np.array(best_table)}")
 
 # Estimate the cost
 analyzer.estimate_cost()
-
 # Print the cost
 total_energy = analyzer.get_total_energy()
-print(f"Total Energy: {total_energy}")
-
+print(f"New Total Energy: {total_energy}")
 total_cycle = analyzer.get_total_cycle()
-print(f"Total Cycle: {total_cycle}")
+print(f"New Total Cycle: {total_cycle}")
 
 import time
 

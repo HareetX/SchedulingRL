@@ -31,6 +31,8 @@ class SchedulingEnvironment:
         self.max_steps = max_steps
 
         self.action_history = [9] * 10  # Store last 10 actions
+
+        self.valid_action_mask = np.ones(self.action_dim, dtype=bool)
         
         self.reset()
     
@@ -61,6 +63,8 @@ class SchedulingEnvironment:
         normalized_cycles = self.cycles / self.initial_cycles
 
         self.action_history = [9] * 10
+
+        self.reset_valid_action_mask()
 
         # Return the initial state
         return np.concatenate([
@@ -104,7 +108,7 @@ class SchedulingEnvironment:
                 [self.curr_row_idx],
                 [normalized_energy, normalized_cycles],
                 self.action_history
-            ]), -100, False, {
+            ]), -1000, False, {
                 'invalid_action_fixed_row': invalid_action_fixed_row,
                 'invalid_action_repetition': invalid_action_repetition
             }
@@ -144,7 +148,7 @@ class SchedulingEnvironment:
                     [self.curr_row_idx],
                     [normalized_energy, normalized_cycles],
                     self.action_history
-                ]), -100, False, {
+                ]), -1000, False, {
                     'invalid_action_fixed_row': invalid_action_fixed_row,
                     'invalid_action_repetition': invalid_action_repetition
                 }
@@ -164,6 +168,8 @@ class SchedulingEnvironment:
         # print(f"Products: {products}, Optimized row indices: {optimized_rows_idx}")
 
         # Search for the optimized table
+        # print(f"Optimized row indices: {optimized_rows_idx}")
+        # print(f"Products: {products}")
         optimized_table = self.analyzer.search_optimized_table(optimized_rows_idx, len(optimized_rows_idx), products, self.metric)
         # optimized_table = self.analyzer.search_optimized_table_sequence(optimized_rows_idx, len(optimized_rows_idx), products, self.metric)
         self.table = np.array(optimized_table)
@@ -181,14 +187,22 @@ class SchedulingEnvironment:
         #         print(f"\tEnergy: {p_energy}, Cycles: {p_cycles}")
         #         print(f"\tSequence Energy: {s_energy}, Sequence Cycles: {s_cycles}")
 
+        # Estimate the cost
+        self.analyzer.estimate_cost()
         new_energy = self.analyzer.get_total_energy()
         new_cycles = self.analyzer.get_total_cycle()
+
+        # print(f"Old Energy: {self.energy}, New Energy: {new_energy}")
+        # print(f"Old Cycles: {self.cycles}, New Cycles: {new_cycles}")
+
         if self.metric == 0:  # Energy
             improvement = self.energy - new_energy
         else:  # Cycles
             improvement = self.cycles - new_cycles
         self.energy = new_energy
         self.cycles = new_cycles
+
+        # print(f"Improvement: {improvement}")
 
         # Calculate reward
         if improvement > 0:
@@ -208,7 +222,9 @@ class SchedulingEnvironment:
         
         # Update current row index
         if len(optimized_rows_idx) > 1:
-            self.curr_row_idx = random.choice([idx for idx in optimized_rows_idx if idx != optimized_rows_idx[0]])
+            new_curr_row_idx = random.choice([idx for idx in optimized_rows_idx if idx != optimized_rows_idx[0]])
+            self.update_valid_action_mask(new_curr_row_idx)
+            self.curr_row_idx = new_curr_row_idx
 
         # Check if done (you may want to define a termination condition)
         self.step_count += 1
@@ -242,6 +258,43 @@ class SchedulingEnvironment:
         print("Scheduling Table:")
         for row in self.table:
             print(row)
+    
+    def reset_valid_action_mask(self):
+        changes = [[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],
+                   [1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[1,10],
+                   [2,3],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[2,10],
+                   [3,4],[3,5],[3,6],[3,7],[3,8],[3,9],[3,10],
+                   [4,5],[4,6],[4,7],[4,8],[4,9],[4,10],
+                   [5,6],[5,7],[5,8],[5,9],[5,10],
+                   [6,7],[6,8],[6,9],[6,10],
+                   [7,8],[7,9],[7,10],
+                   [8,9],[8,10],
+                   [9,10]]
+        temp_fixed_rows = self.fixed_rows.copy()
+        temp_fixed_rows[self.curr_row_idx] = True
+        for i, change in enumerate(changes):
+            if any(temp_fixed_rows[j-1] for j in change):
+                self.valid_action_mask[i] = False
+            else:
+                self.valid_action_mask[i] = True
+        # print("Valid action mask:", self.valid_action_mask)
+    
+    def update_valid_action_mask(self, new_curr_row_idx):
+        changes = [[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],
+                   [1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[1,10],
+                   [2,3],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[2,10],
+                   [3,4],[3,5],[3,6],[3,7],[3,8],[3,9],[3,10],
+                   [4,5],[4,6],[4,7],[4,8],[4,9],[4,10],
+                   [5,6],[5,7],[5,8],[5,9],[5,10],
+                   [6,7],[6,8],[6,9],[6,10],
+                   [7,8],[7,9],[7,10],
+                   [8,9],[8,10],
+                   [9,10]]
+        for i, change in enumerate(changes):
+            if any(self.fixed_rows[j-1] for j in change) or new_curr_row_idx in [j-1 for j in change]:
+                self.valid_action_mask[i] = False
+            else:
+                self.valid_action_mask[i] = True
 
     @property
     def state_dim(self):

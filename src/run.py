@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 import time
@@ -7,12 +8,21 @@ from agent import SchedulingAgent
 from policy import PPOPolicy
 
 def train():
+    # Directories containing your accelerator and network files
+    accelerator_dir = "../configs/accelerators/"
+    network_dir = "../configs/networks/"
+
+    # Get list of files
+    accelerator_files = [f for f in os.listdir(accelerator_dir) if f.endswith('.cfg')]
+    network_files = [f for f in os.listdir(network_dir) if f.endswith('.cfg')]
+    
     # Initialize environment
-    env = SchedulingEnvironment("../configs/accelerators/eyeriss.cfg",
-                                "../configs/networks/resnet50.cfg",
-                                0,
-                                0,
-                                10)
+    env = SchedulingEnvironment(
+        accelerator_path=os.path.join(accelerator_dir, accelerator_files[0]),
+        network_path=os.path.join(network_dir, network_files[0]),
+        layer_idx=0,
+        metric=0,
+        max_steps=10)
     
     # Initialize agent
     state_dim = env.state_dim
@@ -34,14 +44,21 @@ def train():
         total_reward = 0
         invalid_actions = 0
         
+        # print("Initial state shape:", state.shape)
+        # print("Initial valid_action_mask:", env.valid_action_mask)
+        # if np.all(env.valid_action_mask == 0):
+        #     print("All actions are invalid! Resetting environment.")
+        #     continue  # Skip this episode and try again
+        
         while not done:
-            action = agent.select_action(state)
+            valid_action_mask = env.valid_action_mask
+            action = agent.select_action(state, valid_action_mask)
             # step_start_time = time.time()
             next_state, reward, done, info = env.step(action)
             # step_end_time = time.time()
             # step_duration = step_end_time - step_start_time
             # print(f"Action: {action}, Step duration: {step_duration:.6f} seconds")
-            agent.store_experience(state, action, reward, next_state, done)
+            agent.store_experience(state, action, reward, next_state, done, valid_action_mask)
             
             if info['invalid_action_fixed_row']:
                 invalid_actions += 1
