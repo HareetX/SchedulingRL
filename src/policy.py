@@ -23,7 +23,7 @@ class PPOPolicy(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 1)
         )
-        self.optimizer = optim.Adam(self.actor.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.parameters(), lr=lr)
         
         self.lmbda = lmbda
         self.num_epochs = num_epochs
@@ -38,14 +38,12 @@ class PPOPolicy(nn.Module):
     
     def forward(self, state, valid_action_mask):
         action_probs, state_values = self.actor(state), self.critic(state)
-        # print("Original action_probs:", action_probs)
-        # print("Valid action mask:", valid_action_mask)
+        # if torch.isnan(action_probs).any():
+        #     print("NaN values found in action_probs in forward:", action_probs)
+        #     assert False
         action_probs = action_probs * valid_action_mask
-        # print("Masked action_probs:", action_probs)
         action_probs_sum = action_probs.sum(dim=-1, keepdim=True)
-        # print("Sum of masked action_probs:", action_probs_sum)
         action_probs = action_probs / (action_probs_sum + 1e-8)  # Add small epsilon to avoid division by zero
-        # print("Normalized action_probs:", action_probs)
         return action_probs, state_values
     
     def select_action(self, state, valid_action_mask):
@@ -53,6 +51,9 @@ class PPOPolicy(nn.Module):
         valid_action_mask = torch.FloatTensor(valid_action_mask).to(self.device)
         with torch.no_grad():
             action_probs, _ = self.forward(state, valid_action_mask)
+        if torch.isnan(action_probs).any():
+            print("NaN values found in action_probs in select_action:", action_probs)
+            assert False
         action_dist = torch.distributions.Categorical(action_probs)
         action = action_dist.sample()
         return action.item()
@@ -76,6 +77,9 @@ class PPOPolicy(nn.Module):
         
         # Compute old action probabilities with mask
         old_action_probs, _ = self.forward(states, valid_action_masks)
+        if torch.isnan(old_action_probs).any():
+            print("NaN values found in old_action_probs in update:", old_action_probs)
+            assert False
         old_log_probs = torch.log(old_action_probs.gather(1, actions)+1e-8).detach() # Add small epsilon to avoid log(0)
 
         # Normalize advantages
@@ -89,11 +93,12 @@ class PPOPolicy(nn.Module):
         for _ in range(self.num_epochs):
             # Compute current action probabilities and values with mask
             action_probs, state_values = self.forward(states, valid_action_masks)
-            # print("Action probs in update:", action_probs)
-            # if torch.isnan(action_probs).any():
-            #     print("NaN detected in action_probs")
-            #     assert False
-            #     return  # Skip this update
+            if torch.isnan(action_probs).any():
+                print("States in update:", states)
+                print("Valid action masks in update:", valid_action_masks)
+                print("NaN values found in action_probs in update:", action_probs)
+                print("state_values in update:", state_values)
+                assert False
             dist = torch.distributions.Categorical(action_probs)
             log_probs = torch.log(action_probs.gather(1, actions) + 1e-8)  # Add small epsilon to avoid log(0)
             

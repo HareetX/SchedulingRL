@@ -9,7 +9,7 @@ from agent import SchedulingAgent
 from network_parser import count_network_layers
 from policy import PPOPolicy
 
-def train():
+def train(num_episodes=1000):
     # Directories containing your accelerator and network files
     accelerator_dir = "../configs/accelerators/"
     network_dir = "../configs/networks/"
@@ -45,7 +45,6 @@ def train():
     agent = SchedulingAgent(policy)
     
     # Training loop
-    num_episodes = 1000
     rewards = []
     episode_times = []
     start_time = time.time()
@@ -188,6 +187,7 @@ def run(accelerator_path, network_path, layer_idx):
     while not done:
         valid_action_mask = env.valid_action_mask
         action = agent.select_action(state, valid_action_mask)
+        # print(f"Action: {env.action_space[action]+[env.curr_row_idx+1]}")
         
         next_state, _, done, _ = env.step(action)
         
@@ -199,11 +199,11 @@ def run(accelerator_path, network_path, layer_idx):
 
 if __name__ == "__main__":
     # To train a new agent
-    # train()
+    # train(1000)
     
     # To load an existing agent
     run(
-        accelerator_path="../configs/accelerators/eyeriss.cfg",
-        network_path="../configs/networks/resnet50.cfg",
-        layer_idx=0
+        accelerator_path="../configs/accelerators_v/eyeriss.cfg",
+        network_path="../configs/networks_v/resnet50.cfg",
+        layer_idx=5
     )

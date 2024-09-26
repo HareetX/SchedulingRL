@@ -32,6 +32,17 @@ class SchedulingEnvironment:
 
         self.action_history = [9] * 10  # Store last 10 actions
 
+        self.action_space = [[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],
+                             [1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[1,10],
+                             [2,3],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[2,10],
+                             [3,4],[3,5],[3,6],[3,7],[3,8],[3,9],[3,10],
+                             [4,5],[4,6],[4,7],[4,8],[4,9],[4,10],
+                             [5,6],[5,7],[5,8],[5,9],[5,10],
+                             [6,7],[6,8],[6,9],[6,10],
+                             [7,8],[7,9],[7,10],
+                             [8,9],[8,10],
+                             [9,10]]
+
         self.valid_action_mask = np.ones(self.action_dim, dtype=bool)
     
         self.reset()
@@ -76,84 +87,24 @@ class SchedulingEnvironment:
         ])
     
     def step(self, action):
-        changes = [[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],
-                   [1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[1,10],
-                   [2,3],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[2,10],
-                   [3,4],[3,5],[3,6],[3,7],[3,8],[3,9],[3,10],
-                   [4,5],[4,6],[4,7],[4,8],[4,9],[4,10],
-                   [5,6],[5,7],[5,8],[5,9],[5,10],
-                   [6,7],[6,8],[6,9],[6,10],
-                   [7,8],[7,9],[7,10],
-                   [8,9],[8,10],
-                   [9,10]]
+        changes = self.action_space
         invalid_action_fixed_row = False
         invalid_action_repetition = False
         self.consecutive_multi_row_actions = 0  # Counter for consecutive multi-row actions
 
         # Update action history
         self.action_history = [action] + self.action_history[:-1]
-
-        # Check if any of the rows in the action are fixed
-        if any(self.fixed_rows[i-1] for i in changes[action]):
-            invalid_action_fixed_row = True
-            # Skip the optimization
-
-            # Include normalized performance metrics
-            normalized_energy = self.energy / self.initial_energy
-            normalized_cycles = self.cycles / self.initial_cycles
-
-            return np.concatenate([
-                self.table.flatten(),
-                self.fixed_rows,
-                [self.curr_row_idx],
-                [normalized_energy, normalized_cycles],
-                self.action_history
-            ]), -1000, False, {
-                'invalid_action_fixed_row': invalid_action_fixed_row,
-                'invalid_action_repetition': invalid_action_repetition
-            }
         
         # Apply the action to the scheduling table
         optimized_rows_idx = []
         optimized_rows = []
-        if self.curr_row_idx+1 not in changes[action]:
-            optimized_rows.append(self.table[self.curr_row_idx])
-            optimized_rows_idx.append(self.curr_row_idx)
-            for i in changes[action]:
-                optimized_rows.append(self.table[i-1])
-                optimized_rows_idx.append(i-1)
-        else:
-            invalid_action_repetition = True
-            # Randomly generate a new row index different from curr_row_idx
-            available_rows = list(range(self.num_resources))
-            optimized_rows.append(self.table[self.curr_row_idx])
-            optimized_rows_idx.append(self.curr_row_idx)
-            for i in changes[action]:
-                if i-1 != self.curr_row_idx:
-                    optimized_rows.append(self.table[i-1])
-                    optimized_rows_idx.append(i-1)
-                available_rows.remove(i-1)
-            new_row_idx = random.choice(available_rows)
-            if self.fixed_rows[new_row_idx]:
-                invalid_action_fixed_row = True
-                # Skip the optimization
-                
-                # Include normalized performance metrics
-                normalized_energy = self.energy / self.initial_energy
-                normalized_cycles = self.cycles / self.initial_cycles
 
-                return np.concatenate([
-                    self.table.flatten(),
-                    self.fixed_rows,
-                    [self.curr_row_idx],
-                    [normalized_energy, normalized_cycles],
-                    self.action_history
-                ]), -1000, False, {
-                    'invalid_action_fixed_row': invalid_action_fixed_row,
-                    'invalid_action_repetition': invalid_action_repetition
-                }
-            optimized_rows.append(self.table[new_row_idx])
-            optimized_rows_idx.append(new_row_idx)
+        optimized_rows.append(self.table[self.curr_row_idx])
+        optimized_rows_idx.append(self.curr_row_idx)
+        # print(f"Action_env_step: {changes[action]}")
+        for i in changes[action]:
+            optimized_rows.append(self.table[i-1])
+            optimized_rows_idx.append(i-1)
         
         # Brute force search for the best solution
         # Calculate the products of optimized_rows in the corresponding columns
@@ -198,8 +149,10 @@ class SchedulingEnvironment:
 
         if self.metric == 0:  # Energy
             improvement = self.energy - new_energy
+            improvement = improvement / self.initial_energy
         else:  # Cycles
             improvement = self.cycles - new_cycles
+            improvement = improvement / self.initial_cycles
         self.energy = new_energy
         self.cycles = new_cycles
 
@@ -217,11 +170,9 @@ class SchedulingEnvironment:
                 self.consecutive_multi_row_actions += 1
                 if self.consecutive_multi_row_actions > 3:
                     reward -= 10 * (self.consecutive_multi_row_actions - 3)  # Increasing punishment
-
-        if invalid_action_repetition:
-            reward -= 50
         
         # Update current row index
+        # print(optimized_rows_idx)
         if len(optimized_rows_idx) > 1:
             new_curr_row_idx = random.choice([idx for idx in optimized_rows_idx if idx != optimized_rows_idx[0]])
             self.update_valid_action_mask(new_curr_row_idx)
@@ -261,16 +212,7 @@ class SchedulingEnvironment:
             print(row)
     
     def reset_valid_action_mask(self):
-        changes = [[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],
-                   [1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[1,10],
-                   [2,3],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[2,10],
-                   [3,4],[3,5],[3,6],[3,7],[3,8],[3,9],[3,10],
-                   [4,5],[4,6],[4,7],[4,8],[4,9],[4,10],
-                   [5,6],[5,7],[5,8],[5,9],[5,10],
-                   [6,7],[6,8],[6,9],[6,10],
-                   [7,8],[7,9],[7,10],
-                   [8,9],[8,10],
-                   [9,10]]
+        changes = self.action_space
         temp_fixed_rows = self.fixed_rows.copy()
         temp_fixed_rows[self.curr_row_idx] = True
         for i, change in enumerate(changes):
@@ -281,16 +223,7 @@ class SchedulingEnvironment:
         # print("Valid action mask:", self.valid_action_mask)
     
     def update_valid_action_mask(self, new_curr_row_idx):
-        changes = [[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],
-                   [1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[1,10],
-                   [2,3],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[2,10],
-                   [3,4],[3,5],[3,6],[3,7],[3,8],[3,9],[3,10],
-                   [4,5],[4,6],[4,7],[4,8],[4,9],[4,10],
-                   [5,6],[5,7],[5,8],[5,9],[5,10],
-                   [6,7],[6,8],[6,9],[6,10],
-                   [7,8],[7,9],[7,10],
-                   [8,9],[8,10],
-                   [9,10]]
+        changes = self.action_space
         for i, change in enumerate(changes):
             if any(self.fixed_rows[j-1] for j in change) or new_curr_row_idx in [j-1 for j in change]:
                 self.valid_action_mask[i] = False
