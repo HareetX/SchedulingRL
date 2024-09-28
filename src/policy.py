@@ -41,9 +41,32 @@ class PPOPolicy(nn.Module):
         # if torch.isnan(action_probs).any():
         #     print("NaN values found in action_probs in forward:", action_probs)
         #     assert False
+        # action_probs_temp = action_probs
         action_probs = action_probs * valid_action_mask
         action_probs_sum = action_probs.sum(dim=-1, keepdim=True)
-        action_probs = action_probs / (action_probs_sum + 1e-8)  # Add small epsilon to avoid division by zero
+        # if not action_probs_sum > 0:
+        #     print("Invalid action_probs:", action_probs)
+        #     print("State:", state)
+        #     print("Valid action mask:", valid_action_mask)
+        #     print("Original action_probs:", action_probs_temp)
+        #     print("NaN values found in action_probs in forward before normalization:", action_probs)
+        #     assert False
+        # action_probs = torch.where(action_probs_sum > 0, action_probs / action_probs_sum, torch.zeros_like(action_probs))
+        # Prepare equal probabilities for valid actions
+        equal_probs = valid_action_mask / valid_action_mask.sum(dim=-1, keepdim=True)
+
+        # Use where to choose between equal probs and normalized probs
+        action_probs = torch.where(
+            action_probs_sum > 0,
+            action_probs / action_probs_sum,
+            equal_probs
+        )
+        # if not action_probs_sum > 0:
+        #     print("Invalid action_probs:", action_probs)
+        #     print("State:", state)
+        #     print("Valid action mask:", valid_action_mask)
+        #     print("NaN values found in action_probs in forward:", action_probs)
+        #     assert False
         return action_probs, state_values
     
     def select_action(self, state, valid_action_mask):
@@ -51,9 +74,14 @@ class PPOPolicy(nn.Module):
         valid_action_mask = torch.FloatTensor(valid_action_mask).to(self.device)
         with torch.no_grad():
             action_probs, _ = self.forward(state, valid_action_mask)
-        if torch.isnan(action_probs).any():
+        
+        if torch.isnan(action_probs).any() or torch.all(action_probs == 0):
+            print("Invalid action_probs:", action_probs)
+            print("State:", state)
+            print("Valid action mask:", valid_action_mask)
             print("NaN values found in action_probs in select_action:", action_probs)
             assert False
+        
         action_dist = torch.distributions.Categorical(action_probs)
         action = action_dist.sample()
         return action.item()
@@ -107,15 +135,18 @@ class PPOPolicy(nn.Module):
             surr1 = ratio * advantages
             surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantages
             actor_loss = -torch.min(surr1, surr2).mean()
+            print("actor_loss in update:", actor_loss)
             
             # Compute value loss
             critic_loss = nn.MSELoss()(state_values.squeeze(), td_target.squeeze().detach())
+            print("critic_loss in update:", critic_loss)
             
             # Compute entropy bonus
             entropy = dist.entropy().mean()
             
             # Total loss
             loss = actor_loss + self.value_coeff * critic_loss - self.entropy_coeff * entropy
+            print("loss in update:", loss)
 
             # Accumulate losses
             total_loss += loss.item()

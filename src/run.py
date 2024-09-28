@@ -41,7 +41,8 @@ def train(num_episodes=1000):
     state_dim = env.state_dim
     action_dim = env.action_dim
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    policy = PPOPolicy(state_dim, action_dim, device=device)
+    policy = PPOPolicy(state_dim, action_dim, 
+                       device=device)
     agent = SchedulingAgent(policy)
     
     # Training loop
@@ -133,16 +134,31 @@ def train(num_episodes=1000):
     plt.savefig('episode_times_plot.png')
     plt.close()
     
-    # Plot losses
+    # Plot total loss
     plt.figure(figsize=(10, 5))
-    plt.plot(losses, label='Total Loss')
-    plt.plot(actor_losses, label='Actor Loss')
-    plt.plot(critic_losses, label='Critic Loss')
-    plt.title('Loss per Episode')
+    plt.plot(losses)
+    plt.title('Total Loss per Episode')
     plt.xlabel('Episode')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.savefig('loss_plot.png')
+    plt.ylabel('Total Loss')
+    plt.savefig('total_loss_plot.png')
+    plt.close()
+
+    # Plot actor loss
+    plt.figure(figsize=(10, 5))
+    plt.plot(actor_losses)
+    plt.title('Actor Loss per Episode')
+    plt.xlabel('Episode')
+    plt.ylabel('Actor Loss')
+    plt.savefig('actor_loss_plot.png')
+    plt.close()
+
+    # Plot critic loss
+    plt.figure(figsize=(10, 5))
+    plt.plot(critic_losses)
+    plt.title('Critic Loss per Episode')
+    plt.xlabel('Episode')
+    plt.ylabel('Critic Loss')
+    plt.savefig('critic_loss_plot.png')
     plt.close()
     
     # Save the agent's policy
@@ -197,13 +213,50 @@ def run(accelerator_path, network_path, layer_idx):
     print("\nFinal Status:")
     env.print_status()
 
+    # Write final table, total energy, and total cycles to a file
+    accelerator_name = os.path.basename(accelerator_path).split('.')[0]
+    network_name = os.path.basename(network_path).split('.')[0]
+    filename = f"{accelerator_name}_{network_name}_layer{layer_idx}.txt"
+    
+    with open(filename, 'w') as f:
+        f.write("Final Scheduling Table:\n")
+        for row in env.table:
+            f.write(' '.join(map(str, row)) + '\n')
+        f.write(f"\nTotal Energy: {env.energy}\n")
+        f.write(f"Total Cycles: {env.cycles}\n")
+    
+    print(f"Results written to {filename}")
+
+def test():
+     # Directories containing your accelerator and network files
+    accelerator_v_dir = "../configs/accelerators_v/"
+    network_v_dir = "../configs/networks_v/"
+
+    # Get list of files
+    accelerator_files = [f for f in os.listdir(accelerator_v_dir) if f.endswith('.cfg')]
+    network_files = [f for f in os.listdir(network_v_dir) if f.endswith('.cfg')]
+    layer_counts = {}
+    for network_file in network_files:
+        network_path = os.path.join(network_v_dir, network_file)
+        layer_counts[network_file] = count_network_layers(network_path)
+    for accelerator in accelerator_files:
+        for network in network_files:
+            for layer_idx in range(layer_counts[network]):
+                run(
+                    accelerator_path=os.path.join(accelerator_v_dir, accelerator),
+                    network_path=os.path.join(network_v_dir, network),
+                    layer_idx=layer_idx
+                )
+
 if __name__ == "__main__":
     # To train a new agent
-    # train(1000)
+    train(200)
     
     # To load an existing agent
-    run(
-        accelerator_path="../configs/accelerators_v/eyeriss.cfg",
-        network_path="../configs/networks_v/resnet50.cfg",
-        layer_idx=5
-    )
+    # run(
+    #     accelerator_path="../configs/accelerators_v/eyeriss.cfg",
+    #     network_path="../configs/networks_v/resnet50.cfg",
+    #     layer_idx=5
+    # )
+
+    # test()
