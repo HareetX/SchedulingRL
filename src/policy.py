@@ -40,7 +40,7 @@ class PPOPolicy(nn.Module):
     
     def forward(self, state, valid_action_mask):
         action_probs, state_values = self.actor(state), self.critic(state)
-
+        
         action_probs = action_probs * valid_action_mask
         action_probs_sum = action_probs.sum(dim=-1, keepdim=True)
 
@@ -70,6 +70,7 @@ class PPOPolicy(nn.Module):
         
         action_dist = torch.distributions.Categorical(action_probs)
         action = action_dist.sample()
+        # print(action_probs)
         return action.item(), valid
 
     def update(self, experiences):

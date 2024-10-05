@@ -43,7 +43,8 @@ def train(num_episodes=1000, max_steps=10):
     action_dim = env.action_dim
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     policy = PPOPolicy(state_dim, action_dim, 
-                       device=device)
+                       device=device,
+                       entropy_coeff=0.1)
     agent = SchedulingAgent(policy)
     
     # Training loop
@@ -84,6 +85,7 @@ def train(num_episodes=1000, max_steps=10):
         
         while not done:
             valid_action_mask = env.valid_action_mask
+            # print(valid_action_mask.size)
             action, valid = agent.select_action(state, valid_action_mask)
             # step_start_time = time.time()
             next_state, reward, done, info = env.step(action, valid)
@@ -96,6 +98,10 @@ def train(num_episodes=1000, max_steps=10):
                 invalid_actions += 1
             state = next_state
             total_reward += reward
+
+            if not valid:
+                print(env.step_count)
+                input("Pause, enter and continue...")
         
         # Update policy and record losses
         loss, actor_loss, critic_loss = agent.update_policy()
@@ -422,10 +428,10 @@ if __name__ == "__main__":
     #                num_episodes=500)
     
     # To load an existing agent
-    # run(
-    #     accelerator_path="../configs/accelerators_v/eyeriss.cfg",
-    #     network_path="../configs/networks_v/resnet50.cfg",
-    #     layer_idx=0
-    # )
+    run(
+        accelerator_path="../configs/accelerators_v/eyeriss.cfg",
+        network_path="../configs/networks_v/resnet50.cfg",
+        layer_idx=0
+    )
 
-    test()
+    # test()

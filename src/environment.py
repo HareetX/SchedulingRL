@@ -30,8 +30,6 @@ class SchedulingEnvironment:
         self.step_count = 0
         self.max_steps = max_steps
 
-        self.action_history = [9] * 10  # Store last 10 actions
-
         self.action_space = [[1],[2],[3],[4],[5],[6],[7],[8],[9],[10],
                              [1,2],[1,3],[1,4],[1,5],[1,6],[1,7],[1,8],[1,9],[1,10],
                              [2,3],[2,4],[2,5],[2,6],[2,7],[2,8],[2,9],[2,10],
@@ -73,8 +71,6 @@ class SchedulingEnvironment:
         normalized_energy = self.energy / self.initial_energy
         normalized_cycles = self.cycles / self.initial_cycles
 
-        self.action_history = [9] * 10
-
         self.reset_valid_action_mask()
 
         # Return the initial state
@@ -83,15 +79,12 @@ class SchedulingEnvironment:
             self.fixed_rows,
             [self.curr_row_idx],
             [normalized_energy, normalized_cycles],
-            self.action_history
+            self.dnn_params
         ])
     
     def step(self, action, valid):
         changes = self.action_space
         self.consecutive_multi_row_actions = 0  # Counter for consecutive multi-row actions
-
-        # Update action history
-        self.action_history = [action] + self.action_history[:-1]
         
         # Apply the action to the scheduling table
         optimized_rows_idx = []
@@ -112,30 +105,10 @@ class SchedulingEnvironment:
             for row in optimized_rows:
                 product *= row[col]
             products.append(product)
-        
-        # Print status
-        # print(f"Products: {products}, Optimized row indices: {optimized_rows_idx}")
-
-        # Search for the optimized table
-        # print(f"Optimized row indices: {optimized_rows_idx}")
-        # print(f"Products: {products}")
 
         optimized_table = self.analyzer.search_optimized_table(optimized_rows_idx, len(optimized_rows_idx), products, self.metric)
         # optimized_table = self.analyzer.search_optimized_table_sequence(optimized_rows_idx, len(optimized_rows_idx), products, self.metric)
         self.table = np.array(optimized_table)
-
-        # Debug: 
-        # p_energy = self.analyzer.get_total_energy()
-        # p_cycles = self.analyzer.get_total_cycle()
-        # optimized_table_sequence = self.analyzer.search_optimized_table_sequence(optimized_rows_idx, len(optimized_rows_idx), products, self.metric)
-        # s_energy = self.analyzer.get_total_energy()
-        # s_cycles = self.analyzer.get_total_cycle()
-        # if not np.array_equal(optimized_table, optimized_table_sequence):
-        #     print("Optimized table is not equal to optimized table sequence.")
-        #     self.table = np.array(optimized_table_sequence)
-        #     if p_energy > s_energy:
-        #         print(f"\tEnergy: {p_energy}, Cycles: {p_cycles}")
-        #         print(f"\tSequence Energy: {s_energy}, Sequence Cycles: {s_cycles}")
 
         # Estimate the cost
         self.analyzer.estimate_cost()
@@ -168,8 +141,8 @@ class SchedulingEnvironment:
                 self.consecutive_multi_row_actions += 1
                 if self.consecutive_multi_row_actions > 3:
                     reward -= self.consecutive_multi_row_actions - 3  # Increasing punishment
-        if not valid:
-            reward -= 10
+        # if not valid:
+        #     reward = -10
         
         # Update current row index
         # print(optimized_rows_idx)
@@ -191,7 +164,7 @@ class SchedulingEnvironment:
             self.fixed_rows,
             [self.curr_row_idx],
             [normalized_energy, normalized_cycles],
-            self.action_history
+            self.dnn_params
         ]), reward, done, {
             'invalid_action': (not valid),
             'consecutive_multi_row_actions': self.consecutive_multi_row_actions,
@@ -243,8 +216,8 @@ class SchedulingEnvironment:
     @property
     def state_dim(self):
         # Return the dimension of the state space
-        # table size, fixed row indicators, previous row index, normalized energy and cycles, action history
-        return self.table.size + self.num_resources + 1 + 2 + 10
+        # table size, fixed row indicators, previous row index, normalized energy and cycles, dnn_parameters
+        return self.table.size + self.num_resources + 1 + 2 + 8
 
     @property
     def action_dim(self):
