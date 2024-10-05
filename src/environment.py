@@ -86,10 +86,8 @@ class SchedulingEnvironment:
             self.action_history
         ])
     
-    def step(self, action):
+    def step(self, action, valid):
         changes = self.action_space
-        invalid_action_fixed_row = False
-        invalid_action_repetition = False
         self.consecutive_multi_row_actions = 0  # Counter for consecutive multi-row actions
 
         # Update action history
@@ -160,16 +158,18 @@ class SchedulingEnvironment:
 
         # Calculate reward
         if improvement > 0:
-            reward = improvement
+            reward = improvement * 10
             if action < 10:  # Single row optimization
                 reward *= 1.5  # Bonus for single row optimization
             self.consecutive_multi_row_actions = 0
         else:
-            reward = -10
+            reward = -1
             if action >= 10:  # Multi-row optimization
                 self.consecutive_multi_row_actions += 1
                 if self.consecutive_multi_row_actions > 3:
-                    reward -= 10 * (self.consecutive_multi_row_actions - 3)  # Increasing punishment
+                    reward -= self.consecutive_multi_row_actions - 3  # Increasing punishment
+        if not valid:
+            reward -= 10
         
         # Update current row index
         # print(optimized_rows_idx)
@@ -193,8 +193,7 @@ class SchedulingEnvironment:
             [normalized_energy, normalized_cycles],
             self.action_history
         ]), reward, done, {
-            'invalid_action_fixed_row': invalid_action_fixed_row,
-            'invalid_action_repetition': invalid_action_repetition,
+            'invalid_action': (not valid),
             'consecutive_multi_row_actions': self.consecutive_multi_row_actions,
             'step_count': self.step_count
         }

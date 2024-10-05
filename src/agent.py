@@ -32,3 +32,6 @@ class SchedulingAgent:
             return self.policy.update(experiences)
         else:
             return 0, 0, 0
+    
+    def decay_learning_rate(self, decay_factor=0.99):
+        self.policy.decay_learning_rate(decay_factor)
