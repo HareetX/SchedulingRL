@@ -1,0 +1,5 @@
+.vscode/
+obj/
+*.so
+src/python_app/__pycache__/
+src/python_app/build/
