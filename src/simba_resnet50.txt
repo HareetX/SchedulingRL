@@ -1,3 +1,0 @@
-Total Energy: 74907250608.0
-Total Cycles: 336483625.0
-Total Time: 97.5788927078247 s

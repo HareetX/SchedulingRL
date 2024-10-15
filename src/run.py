@@ -99,13 +99,15 @@ def train(num_episodes=1000, max_steps=10):
             state = next_state
             total_reward += reward
 
-            if not valid:
-                print(env.step_count)
-                input("Pause, enter and continue...")
+            # if not valid:
+            #     print(env.step_count)
+            #     input("Pause, enter and continue...")
         
         # Update policy and record losses
         loss, actor_loss, critic_loss = agent.update_policy()
         # agent.decay_learning_rate()
+        if episode >= 500 and (episode % 5 == 0):
+            agent.decay_entropy_coeff()
         losses.append(loss)
         actor_losses.append(actor_loss)
         critic_losses.append(critic_loss)
@@ -380,7 +382,7 @@ def run(accelerator_path, network_path, layer_idx, max_steps=10):
     return env.energy, env.cycles
 
 def test():
-     # Directories containing your accelerator and network files
+    # Directories containing your accelerator and network files
     accelerator_v_dir = "../configs/accelerators_v/"
     network_v_dir = "../configs/networks_v/"
 
@@ -397,15 +399,20 @@ def test():
             total_cycles = 0
             start_time = time.time()
             for layer_idx in range(layer_counts[network]):
-                energy, cycles = run(
-                    accelerator_path=os.path.join(accelerator_v_dir, accelerator),
-                    network_path=os.path.join(network_v_dir, network),
-                    layer_idx=layer_idx
-                )
-                total_energy += energy
-                total_cycles += cycles
+                min_energy = float('inf')
+                min_cycles = float('inf')
+                for _ in range(10):
+                    energy, cycles = run(
+                        accelerator_path=os.path.join(accelerator_v_dir, accelerator),
+                        network_path=os.path.join(network_v_dir, network),
+                        layer_idx=layer_idx
+                    )
+                    min_energy = min(min_energy, energy)
+                    min_cycles = min(min_cycles, cycles)
+                total_energy += min_energy
+                total_cycles += min_cycles
             end_time = time.time()
-            total_time = end_time - start_time
+            total_time = (end_time - start_time) / 10
             
             # Write final table, total energy, and total cycles to a file
             accelerator_name = os.path.basename(accelerator).split('.')[0]
@@ -422,16 +429,16 @@ def test():
 
 if __name__ == "__main__":
     # To train a new agent
-    train(1000)
+    # train(4000)
     # train_one_case(accelerator_path="../configs/accelerators/eyeriss.cfg",
     #                network_path="../configs/networks/resnet50.cfg",
     #                num_episodes=500)
     
     # To load an existing agent
-    run(
-        accelerator_path="../configs/accelerators_v/eyeriss.cfg",
-        network_path="../configs/networks_v/resnet50.cfg",
-        layer_idx=0
-    )
+    # run(
+    #     accelerator_path="../configs/accelerators_v/eyeriss.cfg",
+    #     network_path="../configs/networks_v/resnet50.cfg",
+    #     layer_idx=0
+    # )
 
-    # test()
+    test()

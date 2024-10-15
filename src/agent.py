@@ -35,3 +35,6 @@ class SchedulingAgent:
     
     def decay_learning_rate(self, decay_factor=0.99):
         self.policy.decay_learning_rate(decay_factor)
+
+    def decay_entropy_coeff(self, final_entropy_coeff=0.01, decay_factor=0.995):
+        self.policy.decay_entropy_coeff(final_entropy_coeff, decay_factor)

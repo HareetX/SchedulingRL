@@ -6,8 +6,20 @@ import torch.nn.functional as F
 
 import utils
 
+class StableSoftmax(nn.Module):
+    def __init__(self, dim=-1):
+        super(StableSoftmax, self).__init__()
+        self.dim = dim
+    
+    def forward(self, logits):
+        logits = logits - logits.max(dim=self.dim, keepdim=True)[0]
+        return F.softmax(logits, dim=self.dim)
+
 class PPOPolicy(nn.Module):
-    def __init__(self, state_dim, action_dim, device, actor_lr=3e-4, critic_lr=1e-3, lmbda=0.95, num_epochs=10, epsilon=0.2, gamma=0.99, value_coeff=0.5, entropy_coeff=0.01, max_grad_norm=0.5):
+    def __init__(self, state_dim, action_dim, device, 
+                 actor_lr=3e-4, critic_lr=1e-3, lmbda=0.95, 
+                 num_epochs=10, epsilon=0.2, gamma=0.99, 
+                 value_coeff=0.5, entropy_coeff=0.01, max_grad_norm=0.5):
         super(PPOPolicy, self).__init__()
         self.actor = nn.Sequential(
             nn.Linear(state_dim, 128),
@@ -15,7 +27,8 @@ class PPOPolicy(nn.Module):
             nn.Linear(128, 128),
             nn.ReLU(),
             nn.Linear(128, action_dim),
-            nn.Softmax(dim=-1)
+            # nn.Softmax(dim=-1)
+            StableSoftmax(dim=-1)
         )
         self.critic = nn.Sequential(
             nn.Linear(state_dim, 128),
@@ -61,13 +74,6 @@ class PPOPolicy(nn.Module):
         with torch.no_grad():
             action_probs, _, valid = self.forward(state, valid_action_mask)
         
-        # if torch.isnan(action_probs).any() or torch.all(action_probs == 0):
-        #     print("Invalid action_probs:", action_probs)
-        #     print("State:", state)
-        #     print("Valid action mask:", valid_action_mask)
-        #     print("NaN values found in action_probs in select_action:", action_probs)
-        #     assert False
-        
         action_dist = torch.distributions.Categorical(action_probs)
         action = action_dist.sample()
         # print(action_probs)
@@ -95,9 +101,6 @@ class PPOPolicy(nn.Module):
         
         # Compute old action probabilities with mask
         old_action_probs, _, _ = self.forward(states, valid_action_masks)
-        # if torch.isnan(old_action_probs).any():
-        #     print("NaN values found in old_action_probs in update:", old_action_probs)
-        #     assert False
         old_log_probs = torch.log(old_action_probs.gather(1, actions)+1e-8).detach() # Add small epsilon to avoid log(0)
 
         # Normalize advantages
@@ -111,12 +114,7 @@ class PPOPolicy(nn.Module):
         for _ in range(self.num_epochs):
             # Compute current action probabilities and values with mask
             action_probs, state_values, _ = self.forward(states, valid_action_masks)
-            # if torch.isnan(action_probs).any():
-            #     print("States in update:", states)
-            #     print("Valid action masks in update:", valid_action_masks)
-            #     print("NaN values found in action_probs in update:", action_probs)
-            #     print("state_values in update:", state_values)
-            #     assert False
+
             dist = torch.distributions.Categorical(action_probs)
             log_probs = torch.log(action_probs.gather(1, actions) + 1e-8)  # Add small epsilon to avoid log(0)
             
@@ -170,3 +168,6 @@ class PPOPolicy(nn.Module):
             param_group['lr'] *= decay_factor
         for param_group in self.critic_optimizer.param_groups:
             param_group['lr'] *= decay_factor
+    
+    def decay_entropy_coeff(self, final_entropy_coeff=0.01, decay_factor=0.995):
+        self.entropy_coeff = max(final_entropy_coeff, self.entropy_coeff * decay_factor)
