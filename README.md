@@ -57,7 +57,8 @@ Future work will focus on improving scalability by refining the state space repr
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/rl-dnn-accelerator-scheduling.git
+   git clone https://github.com/HareetX/SchedulingRL.git
+   cd SchedulingRL
    ```
 2. Install dependencies:
 - You can either install the required packages manually or build the Docker image:
